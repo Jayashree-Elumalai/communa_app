@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_pg.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -10,6 +11,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final repeatPasswordController = TextEditingController();
@@ -17,28 +19,73 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureRepeat = true;
   String error = '';
+  bool success = false;
+
 
   Future<void> register() async {
-    if (passwordController.text.trim() != repeatPasswordController.text.trim()) {
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+    final repeatPassword = repeatPasswordController.text.trim();
+
+    if (name.isEmpty) {
+      setState(() {
+        error = 'Please enter your full name.';
+      });
+      return;
+    }
+
+    if (password != repeatPassword) {
       setState(() {
         error = 'Passwords do not match.';
       });
       return;
     }
 
+    // ✅ Show immediate success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('✅ Registered successfully. Please wait...')),
+    );
+
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
+      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-    } catch (e) {
-      setState(() {
-        error = 'Registration failed. Please try again.';
+
+      final uid = userCredential.user?.uid;
+
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'uid': uid,
+        'name': name,
+        'email': email,
       });
+
+      // Wait a short while so they can see the snackbar
+      await Future.delayed(const Duration(seconds: 1));
+
+
+      if (mounted) {
+        Navigator.of(context).pop(); // back to login
+      }
+    } catch (e) {
+      if (e is FirebaseAuthException) {
+        setState(() {
+          if (e.code == 'email-already-in-use') {
+            error = 'This email is already in use.';
+          } else if (e.code == 'invalid-email') {
+            error = 'Please enter a valid email address.';
+          } else if (e.code == 'weak-password') {
+            error = 'Password must be at least 6 characters.';
+          } else {
+            error = 'Registration failed. Please try again.';
+          }
+        });
+      } else {
+        setState(() {
+          error = 'An unknown error occurred. Please try again.';
+        });
+      }
     }
   }
 
@@ -52,7 +99,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // 🔽 LOGO + TITLE
               Image.asset(
                 'assets/images/communa_logo.png',
                 height: 100,
@@ -64,12 +110,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
-                  color: Color(0xFF5E5BDA), // same as "Communa"
+                  color: Color(0xFF5E5BDA),
                 ),
               ),
               const SizedBox(height: 32),
 
-              // 🔽 FORM
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: 'Full Name',
+                  prefixIcon: const Icon(Icons.person),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
@@ -157,7 +216,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Navigator.pop(context);
                 },
                 child: const Text('Back to Login'),
-              )
+              ),
             ],
           ),
         ),
@@ -165,4 +224,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-
