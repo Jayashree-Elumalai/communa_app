@@ -44,33 +44,26 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> fetchQuoteOfTheDay() async {
     try {
       final response = await http.get(Uri.parse('https://dummyjson.com/quotes/random'));
-      final data = jsonDecode(response.body);
-      setState(() {
-        quote = data['quote'];
-        author = data['author'];
-      });
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final Map<String, dynamic> data = jsonDecode(response.body);
         setState(() {
-          quote = data['content'] ?? 'No quote found.';
+          quote = data['quote'] ?? 'No quote found.';
           author = data['author'] ?? 'Unknown';
         });
       } else {
         setState(() {
-          quote = 'Failed to load quote (status: ${response.statusCode}).';
+          quote = 'Failed to fetch quote.';
           author = '';
         });
       }
     } catch (e) {
-      print('Exception: $e');
       setState(() {
         quote = 'Unable to load quote.';
         author = '';
       });
     }
   }
-
 
 
   @override
@@ -212,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 32),
 
-                // 🔽 Chores Button with custom size
+                // 🔽 Chores Button 
                 buildFeatureButton(
                   label: 'Chores',
                   imagePath: 'assets/images/chores.png',
@@ -228,4 +221,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+
 
