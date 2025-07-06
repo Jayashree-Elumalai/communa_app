@@ -121,12 +121,47 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
+  void _confirmDelete(String bookingId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Booking'),
+        content: const Text('Are you sure you want to cancel this booking?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop(); // Close dialog
+              try {
+                await FirebaseFirestore.instance
+                    .collection('bookings')
+                    .doc(bookingId)
+                    .delete();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Booking cancelled')),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to cancel booking: $e')),
+                );
+              }
+            },
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Book a Shared Resource'),
-        backgroundColor: const Color(0xFF5E5BDA),
+        backgroundColor: Colors.deepPurple,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -226,7 +261,8 @@ class _BookingPageState extends State<BookingPage> {
                   return ListView.builder(
                     itemCount: bookings.length,
                     itemBuilder: (context, index) {
-                      final data = bookings[index].data() as Map<String, dynamic>;
+                      final data =
+                      bookings[index].data() as Map<String, dynamic>;
                       final resourceName = data['resourceName'] ?? '';
                       final itemName = data['itemName'] ?? '';
                       final timestamp = data['date'] as Timestamp?;
@@ -239,6 +275,12 @@ class _BookingPageState extends State<BookingPage> {
                         child: ListTile(
                           title: Text('$resourceName - $itemName'),
                           subtitle: Text(dateStr),
+                          trailing: data['userId'] == user?.uid
+                              ? IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _confirmDelete(bookings[index].id),
+                          )
+                              : null,
                         ),
                       );
                     },
