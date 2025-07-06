@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class BookingPage extends StatefulWidget {
-  const BookingPage({super.key});
+  const BookingPage({Key? key}) : super(key: key);
 
   @override
   State<BookingPage> createState() => _BookingPageState();
@@ -17,123 +17,109 @@ class _BookingPageState extends State<BookingPage> {
   String? selectedItemName;
   DateTime? selectedDate;
 
-  final userId = FirebaseAuth.instance.currentUser?.uid;
-
-  Map<String, Map<String, String>> resourceItemsMap = {}; // resourceName -> {itemId: itemName}
-  Map<String, String> availableItems = {};
+  List<QueryDocumentSnapshot> resources = [];
+  List<QueryDocumentSnapshot> items = [];
 
   @override
   void initState() {
     super.initState();
-    fetchResourcesAndItems();
+    fetchResources();
   }
 
-  Future<void> fetchResourcesAndItems() async {
-    final snapshot = await FirebaseFirestore.instance.collection('resources').get();
-    Map<String, Map<String, String>> tempMap = {};
+  Future<void> fetchResources() async {
+    final snapshot =
+    await FirebaseFirestore.instance.collection('resources').get();
+    if (!mounted) return;
+    setState(() {
+      resources = snapshot.docs;
+    });
+  }
 
-    for (var doc in snapshot.docs) {
-      final resourceId = doc.id;
-      final resourceName = doc['name'];
+  Future<void> fetchItems(String resourceId) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('resources')
+        .doc(resourceId)
+        .collection('items')
+        .get();
+    if (!mounted) return;
+    setState(() {
+      items = snapshot.docs;
+    });
+  }
 
-      final itemsSnapshot = await FirebaseFirestore.instance
-          .collection('resources')
-          .doc(resourceId)
-          .collection('items')
-          .get();
-
-      final items = {
-        for (var item in itemsSnapshot.docs) item.id: item['name'] as String
-      };
-
-      tempMap[resourceId] = {
-        'name': resourceName,
-        'items': items.entries.map((e) => e.key).join(','),
-      };
-
+  Future<void> selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null && mounted) {
       setState(() {
-        resourceItemsMap[resourceId] = items;
+        selectedDate = picked;
       });
     }
   }
 
-  Future<void> pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-    if (picked != null) {
-      setState(() => selectedDate = picked);
-    }
-  }
-
-  Future<void> bookResource() async {
-    if (selectedResourceId == null ||
+  Future<void> submitBooking() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null ||
+        selectedResourceId == null ||
         selectedItemId == null ||
         selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select resource, item, and date.')),
+        const SnackBar(content: Text('Please complete all fields')),
       );
       return;
     }
 
-    final existing = await FirebaseFirestore.instance
-        .collection('bookings')
-        .where('resourceId', isEqualTo: selectedResourceId)
-        .where('itemId', isEqualTo: selectedItemId)
-        .where('date', isEqualTo: Timestamp.fromDate(selectedDate!))
-        .get();
+    try {
+      // Check for existing booking (same resource, item, and date)
+      final existing = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('resourceId', isEqualTo: selectedResourceId)
+          .where('itemId', isEqualTo: selectedItemId)
+          .where('date', isEqualTo: Timestamp.fromDate(selectedDate!))
+          .get();
 
-    if (existing.docs.isNotEmpty) {
+      if (existing.docs.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This item is already booked for this date'),
+          ),
+        );
+        return;
+      }
+
+      // Add booking
+      await FirebaseFirestore.instance.collection('bookings').add({
+        'resourceId': selectedResourceId,
+        'itemId': selectedItemId,
+        'resourceName': selectedResourceName,
+        'itemName': selectedItemName,
+        'date': Timestamp.fromDate(selectedDate!),
+        'userId': user.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ This item is already booked on this date.')),
+        const SnackBar(content: Text('Booking submitted')),
       );
-      return;
-    }
 
-    await FirebaseFirestore.instance.collection('bookings').add({
-      'userId': userId,
-      'resourceId': selectedResourceId,
-      'resourceName': selectedResourceName,
-      'itemId': selectedItemId,
-      'itemName': selectedItemName,
-      'date': Timestamp.fromDate(selectedDate!),
-      'createdAt': Timestamp.now(),
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('✅ Booking successful!')),
-    );
-
-    setState(() {
-      selectedResourceId = null;
-      selectedItemId = null;
-      selectedResourceName = null;
-      selectedItemName = null;
-      selectedDate = null;
-      availableItems = {};
-    });
-  }
-
-  Future<void> cancelBooking(String bookingId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Cancel Booking?'),
-        content: const Text('Are you sure you want to cancel this booking?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm')),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await FirebaseFirestore.instance.collection('bookings').doc(bookingId).delete();
+      // Reset form
+      if (!mounted) return;
+      setState(() {
+        selectedResourceId = null;
+        selectedItemId = null;
+        selectedDate = null;
+        selectedItemName = null;
+        selectedResourceName = null;
+        items = [];
+      });
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Booking cancelled.')),
+        SnackBar(content: Text('Booking failed: $e')),
       );
     }
   }
@@ -141,96 +127,82 @@ class _BookingPageState extends State<BookingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Book a Shared Resource')),
+      appBar: AppBar(
+        title: const Text('Book a Shared Resource'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            DropdownButtonFormField<String>(
-              value: selectedResourceId,
+            // Resource dropdown
+            DropdownButton<String>(
               hint: const Text('Select Resource'),
-              items: resourceItemsMap.entries.map((entry) {
-                return DropdownMenuItem(
-                  value: entry.key,
-                  child: Text(entry.value.values.first),
+              value: selectedResourceId,
+              isExpanded: true,
+              items: resources.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return DropdownMenuItem<String>(
+                  value: doc.id,
+                  child: Text(data['name'] ?? 'Unnamed Resource'),
                 );
               }).toList(),
-              onChanged: (resId) {
+              onChanged: (value) {
+                final resource =
+                resources.firstWhere((doc) => doc.id == value);
+                final name =
+                (resource.data() as Map<String, dynamic>)['name'];
                 setState(() {
-                  selectedResourceId = resId;
-                  selectedResourceName = resourceItemsMap[resId!]!.values.first;
-                  availableItems = resourceItemsMap[resId]!;
+                  selectedResourceId = value;
+                  selectedResourceName = name;
                   selectedItemId = null;
                   selectedItemName = null;
                 });
+                fetchItems(value!);
               },
             ),
+
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: selectedItemId,
+
+            // Item dropdown
+            DropdownButton<String>(
               hint: const Text('Select Item'),
-              items: availableItems.entries.map((entry) {
-                return DropdownMenuItem(value: entry.key, child: Text(entry.value));
+              value: selectedItemId,
+              isExpanded: true,
+              items: items.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return DropdownMenuItem<String>(
+                  value: doc.id,
+                  child: Text(data['name'] ?? 'Unnamed Item'),
+                );
               }).toList(),
-              onChanged: (val) {
+              onChanged: (value) {
+                final item = items.firstWhere((doc) => doc.id == value);
+                final name =
+                (item.data() as Map<String, dynamic>)['name'];
                 setState(() {
-                  selectedItemId = val;
-                  selectedItemName = availableItems[val];
+                  selectedItemId = value;
+                  selectedItemName = name;
                 });
               },
             ),
+
             const SizedBox(height: 16),
+
+            // Date picker
             ElevatedButton.icon(
-              onPressed: pickDate,
-              icon: const Icon(Icons.calendar_month),
-              label: Text(
-                selectedDate == null ? 'Pick Date' : DateFormat.yMMMd().format(selectedDate!),
-              ),
+              onPressed: selectDate,
+              icon: const Icon(Icons.calendar_today),
+              label: Text(selectedDate != null
+                  ? DateFormat.yMMMd().format(selectedDate!)
+                  : 'Select Date'),
             ),
-            const SizedBox(height: 24),
+
+            const SizedBox(height: 16),
+
+            // Submit button
             ElevatedButton(
-              onPressed: bookResource,
+              onPressed: submitBooking,
               child: const Text('Submit Booking'),
-            ),
-            const SizedBox(height: 32),
-            const Text('Your Bookings:', style: TextStyle(fontSize: 18)),
-            const SizedBox(height: 12),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('bookings')
-                    .where('userId', isEqualTo: userId)
-                    .orderBy('date')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                  final docs = snapshot.data!.docs;
-
-                  if (docs.isEmpty) {
-                    return const Center(child: Text('No bookings yet.'));
-                  }
-
-                  return ListView.builder(
-                    itemCount: docs.length,
-                    itemBuilder: (_, i) {
-                      final doc = docs[i];
-                      final data = doc.data() as Map<String, dynamic>;
-                      final date = (data['date'] as Timestamp).toDate();
-                      return Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.book_online),
-                          title: Text('${data['resourceName']} - ${data['itemName']}'),
-                          subtitle: Text(DateFormat.yMMMd().format(date)),
-                          trailing: TextButton(
-                            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
-                            onPressed: () => cancelBooking(doc.id),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
             ),
           ],
         ),
