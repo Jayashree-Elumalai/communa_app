@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow authenticated users to read bookings (so they can check for duplicates)
+    match /bookings/{bookingId} {
+      allow create: if request.auth != null &&
+                    request.resource.data.userId == request.auth.uid;
+
+      // Allow read if the user is authenticated
+      allow read: if request.auth != null &&
+              resource.data.userId == request.auth.uid;
+              
+      // Still restrict update/delete to owner
+      allow update, delete: if request.auth != null &&
+                            resource.data.userId == request.auth.uid;
+    }
+    
+    
+    match /anonymous_feedback/{feedbackId} {
+      allow read: if true; // public read access
+      allow create: if request.auth != null; // only logged-in users can submit
+    }
+
+
+    match /resources/{resourceId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.admin == true;
+
+      match /items/{itemId} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.token.admin == true;
+      }
+    }
+
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
