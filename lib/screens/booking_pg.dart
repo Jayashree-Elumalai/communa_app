@@ -19,6 +19,7 @@ class _BookingPageState extends State<BookingPage> {
 
   List<QueryDocumentSnapshot> resources = [];
   List<QueryDocumentSnapshot> items = [];
+  final user = FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
@@ -62,7 +63,6 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   Future<void> submitBooking() async {
-    final user = FirebaseAuth.instance.currentUser;
     if (user == null ||
         selectedResourceId == null ||
         selectedItemId == null ||
@@ -74,7 +74,6 @@ class _BookingPageState extends State<BookingPage> {
     }
 
     try {
-      // Check for existing booking (same resource, item, and date)
       final existing = await FirebaseFirestore.instance
           .collection('bookings')
           .where('resourceId', isEqualTo: selectedResourceId)
@@ -91,14 +90,13 @@ class _BookingPageState extends State<BookingPage> {
         return;
       }
 
-      // Add booking
       await FirebaseFirestore.instance.collection('bookings').add({
         'resourceId': selectedResourceId,
         'itemId': selectedItemId,
         'resourceName': selectedResourceName,
         'itemName': selectedItemName,
         'date': Timestamp.fromDate(selectedDate!),
-        'userId': user.uid,
+        'userId': user!.uid,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -107,7 +105,6 @@ class _BookingPageState extends State<BookingPage> {
         const SnackBar(content: Text('Booking submitted')),
       );
 
-      // Reset form
       if (!mounted) return;
       setState(() {
         selectedResourceId = null;
@@ -129,12 +126,12 @@ class _BookingPageState extends State<BookingPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Book a Shared Resource'),
+        backgroundColor: const Color(0xFF5E5BDA),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Resource dropdown
             DropdownButton<String>(
               hint: const Text('Select Resource'),
               value: selectedResourceId,
@@ -160,10 +157,7 @@ class _BookingPageState extends State<BookingPage> {
                 fetchItems(value!);
               },
             ),
-
-            const SizedBox(height: 16),
-
-            // Item dropdown
+            const SizedBox(height: 12),
             DropdownButton<String>(
               hint: const Text('Select Item'),
               value: selectedItemId,
@@ -185,10 +179,7 @@ class _BookingPageState extends State<BookingPage> {
                 });
               },
             ),
-
-            const SizedBox(height: 16),
-
-            // Date picker
+            const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: selectDate,
               icon: const Icon(Icons.calendar_today),
@@ -196,13 +187,64 @@ class _BookingPageState extends State<BookingPage> {
                   ? DateFormat.yMMMd().format(selectedDate!)
                   : 'Select Date'),
             ),
-
-            const SizedBox(height: 16),
-
-            // Submit button
+            const SizedBox(height: 12),
             ElevatedButton(
               onPressed: submitBooking,
               child: const Text('Submit Booking'),
+            ),
+            const SizedBox(height: 20),
+            const Divider(),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'All Bookings',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('bookings')
+                    .orderBy('date')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Text('Error loading bookings.');
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const CircularProgressIndicator();
+                  }
+
+                  final bookings = snapshot.data!.docs;
+
+                  if (bookings.isEmpty) {
+                    return const Text('No bookings yet.');
+                  }
+
+                  return ListView.builder(
+                    itemCount: bookings.length,
+                    itemBuilder: (context, index) {
+                      final data = bookings[index].data() as Map<String, dynamic>;
+                      final resourceName = data['resourceName'] ?? '';
+                      final itemName = data['itemName'] ?? '';
+                      final timestamp = data['date'] as Timestamp?;
+                      final dateStr = timestamp != null
+                          ? DateFormat.yMMMd().format(timestamp.toDate())
+                          : 'Unknown Date';
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        child: ListTile(
+                          title: Text('$resourceName - $itemName'),
+                          subtitle: Text(dateStr),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
