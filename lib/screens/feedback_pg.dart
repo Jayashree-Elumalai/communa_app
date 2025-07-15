@@ -35,32 +35,37 @@ class _FeedbackPageState extends State<FeedbackPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Anonymous Feedback')),
+      appBar: AppBar(
+        title: const Text('Anonymous Feedback'),
+        backgroundColor: Colors.deepPurple,
+      ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             const Text(
               'Tell us what’s on your mind anonymously.',
               style: TextStyle(fontSize: 16),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextField(
               controller: feedbackController,
-              maxLines: 4,
+              maxLines: 5,
               decoration: InputDecoration(
                 hintText: 'Type your feedback here...',
                 filled: true,
                 fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: submitFeedback,
               child: const Text('Submit'),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
             const Divider(),
             const Align(
               alignment: Alignment.centerLeft,
@@ -94,7 +99,8 @@ class _FeedbackPageState extends State<FeedbackPage> {
                   return ListView.builder(
                     itemCount: feedbackDocs.length,
                     itemBuilder: (context, index) {
-                      final data = feedbackDocs[index].data() as Map<String, dynamic>;
+                      final data =
+                      feedbackDocs[index].data() as Map<String, dynamic>;
                       final text = data['text'] ?? '';
                       final timestamp = data['timestamp'] as Timestamp?;
                       final formattedTime = timestamp != null
