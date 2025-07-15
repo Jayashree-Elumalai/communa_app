@@ -19,7 +19,10 @@ class _ResourceManagementPageState extends State<ResourceManagementPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Add Resource'),
-        content: TextField(controller: controller, decoration: const InputDecoration(labelText: 'Resource name')),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Resource name'),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
@@ -51,7 +54,10 @@ class _ResourceManagementPageState extends State<ResourceManagementPage> {
             onPressed: () async {
               final newName = controller.text.trim();
               if (newName.isNotEmpty) {
-                await FirebaseFirestore.instance.collection('resources').doc(selectedResourceId).update({'name': newName});
+                await FirebaseFirestore.instance
+                    .collection('resources')
+                    .doc(selectedResourceId)
+                    .update({'name': newName});
               }
               Navigator.pop(context);
             },
@@ -64,11 +70,35 @@ class _ResourceManagementPageState extends State<ResourceManagementPage> {
 
   Future<void> _deleteSelectedResource() async {
     if (selectedResourceId == null) return;
-    await FirebaseFirestore.instance.collection('resources').doc(selectedResourceId).delete();
-    setState(() {
-      selectedResourceId = null;
-      selectedResourceName = null;
-    });
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Resource'),
+        content: Text('Are you sure you want to delete "$selectedResourceName"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete == true) {
+      await FirebaseFirestore.instance.collection('resources').doc(selectedResourceId).delete();
+      setState(() {
+        selectedResourceId = null;
+        selectedResourceName = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Resource deleted successfully')),
+      );
+    }
   }
 
   @override
@@ -79,7 +109,10 @@ class _ResourceManagementPageState extends State<ResourceManagementPage> {
         actions: [
           IconButton(icon: const Icon(Icons.edit), onPressed: _editSelectedResource),
           IconButton(icon: const Icon(Icons.add), onPressed: _addResource),
-          IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: _deleteSelectedResource),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: _deleteSelectedResource,
+          ),
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -110,7 +143,10 @@ class _ResourceManagementPageState extends State<ResourceManagementPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ResourceItemsPage(resourceId: id, resourceName: name),
+                        builder: (_) => ResourceItemsPage(
+                          resourceId: id,
+                          resourceName: name,
+                        ),
                       ),
                     );
                   },
