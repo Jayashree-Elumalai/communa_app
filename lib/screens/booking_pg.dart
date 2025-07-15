@@ -21,6 +21,8 @@ class _BookingPageState extends State<BookingPage> {
   List<QueryDocumentSnapshot> items = [];
   final user = FirebaseAuth.instance.currentUser;
 
+  String filterStatus = 'all'; // 'all', 'upcoming', 'completed'
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +99,7 @@ class _BookingPageState extends State<BookingPage> {
         'itemName': selectedItemName,
         'date': Timestamp.fromDate(selectedDate!),
         'userId': user!.uid,
+        'status': 'upcoming',
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -105,7 +108,6 @@ class _BookingPageState extends State<BookingPage> {
         const SnackBar(content: Text('Booking submitted')),
       );
 
-      if (!mounted) return;
       setState(() {
         selectedResourceId = null;
         selectedItemId = null;
@@ -134,7 +136,7 @@ class _BookingPageState extends State<BookingPage> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop();
               try {
                 await FirebaseFirestore.instance
                     .collection('bookings')
@@ -156,8 +158,34 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
+  void _markAsCompleted(String bookingId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(bookingId)
+          .update({'status': 'completed'});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Marked as completed')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update status: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    Query<Map<String, dynamic>> query =
+    FirebaseFirestore.instance.collection('bookings');
+
+    if (filterStatus != 'all') {
+      query = query.where('status', isEqualTo: filterStatus);
+    }
+
+    query = query.orderBy('date');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Book a Shared Resource'),
@@ -228,21 +256,32 @@ class _BookingPageState extends State<BookingPage> {
               child: const Text('Submit Booking'),
             ),
             const SizedBox(height: 20),
-            const Divider(),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'All Bookings',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+            Row(
+              children: [
+                const Text(
+                  'Filter:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: filterStatus,
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('All')),
+                    DropdownMenuItem(value: 'upcoming', child: Text('Upcoming')),
+                    DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      filterStatus = value!;
+                    });
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('bookings')
-                    .orderBy('date')
-                    .snapshots(),
+                stream: query.snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return const Text('Error loading bookings.');
@@ -255,7 +294,7 @@ class _BookingPageState extends State<BookingPage> {
                   final bookings = snapshot.data!.docs;
 
                   if (bookings.isEmpty) {
-                    return const Text('No bookings yet.');
+                    return const Text('No bookings found.');
                   }
 
                   return ListView.builder(
@@ -265,6 +304,7 @@ class _BookingPageState extends State<BookingPage> {
                       bookings[index].data() as Map<String, dynamic>;
                       final resourceName = data['resourceName'] ?? '';
                       final itemName = data['itemName'] ?? '';
+                      final status = data['status'] ?? 'unknown';
                       final timestamp = data['date'] as Timestamp?;
                       final dateStr = timestamp != null
                           ? DateFormat.yMMMd().format(timestamp.toDate())
@@ -274,13 +314,26 @@ class _BookingPageState extends State<BookingPage> {
                         margin: const EdgeInsets.symmetric(vertical: 6),
                         child: ListTile(
                           title: Text('$resourceName - $itemName'),
-                          subtitle: Text(dateStr),
-                          trailing: data['userId'] == user?.uid
-                              ? IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _confirmDelete(bookings[index].id),
-                          )
-                              : null,
+                          subtitle: Text('$dateStr\nStatus: $status'),
+                          isThreeLine: true,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (data['userId'] == user?.uid &&
+                                  data['status'] == 'upcoming')
+                                IconButton(
+                                  icon: const Icon(Icons.check, color: Colors.green),
+                                  tooltip: 'Mark as completed',
+                                  onPressed: () => _markAsCompleted(bookings[index].id),
+                                ),
+                              if (data['userId'] == user?.uid)
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  tooltip: 'Cancel booking',
+                                  onPressed: () => _confirmDelete(bookings[index].id),
+                                ),
+                            ],
+                          ),
                         ),
                       );
                     },
