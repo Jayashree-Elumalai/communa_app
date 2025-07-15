@@ -25,7 +25,10 @@ class _ResourceItemsPageState extends State<ResourceItemsPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Add Item'),
-        content: TextField(controller: controller, decoration: const InputDecoration(labelText: 'Item name')),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Item name'),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
@@ -79,16 +82,37 @@ class _ResourceItemsPageState extends State<ResourceItemsPage> {
 
   Future<void> _deleteSelectedItem() async {
     if (selectedItemId == null) return;
-    await FirebaseFirestore.instance
-        .collection('resources')
-        .doc(widget.resourceId)
-        .collection('items')
-        .doc(selectedItemId)
-        .delete();
-    setState(() {
-      selectedItemId = null;
-      selectedItemName = null;
-    });
+
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Item'),
+        content: Text('Are you sure you want to delete "$selectedItemName"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    // If confirmed, delete the item
+    if (confirm == true) {
+      await FirebaseFirestore.instance
+          .collection('resources')
+          .doc(widget.resourceId)
+          .collection('items')
+          .doc(selectedItemId)
+          .delete();
+      setState(() {
+        selectedItemId = null;
+        selectedItemName = null;
+      });
+    }
   }
 
   @override
