@@ -22,6 +22,7 @@ class _BookingPageState extends State<BookingPage> {
   final user = FirebaseAuth.instance.currentUser;
 
   String filterStatus = 'all'; // 'all', 'upcoming', 'completed'
+  String filterBy = 'all'; // 'all', 'mine'
 
   @override
   void initState() {
@@ -30,8 +31,7 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   Future<void> fetchResources() async {
-    final snapshot =
-    await FirebaseFirestore.instance.collection('resources').get();
+    final snapshot = await FirebaseFirestore.instance.collection('resources').get();
     if (!mounted) return;
     setState(() {
       resources = snapshot.docs;
@@ -99,6 +99,7 @@ class _BookingPageState extends State<BookingPage> {
         'itemName': selectedItemName,
         'date': Timestamp.fromDate(selectedDate!),
         'userId': user!.uid,
+        'userEmail': user!.email ?? 'Unknown',
         'status': 'upcoming',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -177,11 +178,14 @@ class _BookingPageState extends State<BookingPage> {
 
   @override
   Widget build(BuildContext context) {
-    Query<Map<String, dynamic>> query =
-    FirebaseFirestore.instance.collection('bookings');
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection('bookings');
 
     if (filterStatus != 'all') {
       query = query.where('status', isEqualTo: filterStatus);
+    }
+
+    if (filterBy == 'mine') {
+      query = query.where('userId', isEqualTo: user?.uid);
     }
 
     query = query.orderBy('date');
@@ -207,10 +211,8 @@ class _BookingPageState extends State<BookingPage> {
                 );
               }).toList(),
               onChanged: (value) {
-                final resource =
-                resources.firstWhere((doc) => doc.id == value);
-                final name =
-                (resource.data() as Map<String, dynamic>)['name'];
+                final resource = resources.firstWhere((doc) => doc.id == value);
+                final name = (resource.data() as Map<String, dynamic>)['name'];
                 setState(() {
                   selectedResourceId = value;
                   selectedResourceName = name;
@@ -234,8 +236,7 @@ class _BookingPageState extends State<BookingPage> {
               }).toList(),
               onChanged: (value) {
                 final item = items.firstWhere((doc) => doc.id == value);
-                final name =
-                (item.data() as Map<String, dynamic>)['name'];
+                final name = (item.data() as Map<String, dynamic>)['name'];
                 setState(() {
                   selectedItemId = value;
                   selectedItemName = name;
@@ -258,10 +259,7 @@ class _BookingPageState extends State<BookingPage> {
             const SizedBox(height: 20),
             Row(
               children: [
-                const Text(
-                  'Filter:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                const Text('Status:', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(width: 12),
                 DropdownButton<String>(
                   value: filterStatus,
@@ -279,6 +277,25 @@ class _BookingPageState extends State<BookingPage> {
               ],
             ),
             const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text('By:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: filterBy,
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Everyone')),
+                    DropdownMenuItem(value: 'mine', child: Text('My Bookings')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      filterBy = value!;
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: query.snapshots(),
@@ -286,7 +303,6 @@ class _BookingPageState extends State<BookingPage> {
                   if (snapshot.hasError) {
                     return const Text('Error loading bookings.');
                   }
-
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const CircularProgressIndicator();
                   }
@@ -300,11 +316,11 @@ class _BookingPageState extends State<BookingPage> {
                   return ListView.builder(
                     itemCount: bookings.length,
                     itemBuilder: (context, index) {
-                      final data =
-                      bookings[index].data() as Map<String, dynamic>;
+                      final data = bookings[index].data() as Map<String, dynamic>;
                       final resourceName = data['resourceName'] ?? '';
                       final itemName = data['itemName'] ?? '';
                       final status = data['status'] ?? 'unknown';
+                      final userEmail = data['userEmail'] ?? 'Unknown user';
                       final timestamp = data['date'] as Timestamp?;
                       final dateStr = timestamp != null
                           ? DateFormat.yMMMd().format(timestamp.toDate())
@@ -314,13 +330,12 @@ class _BookingPageState extends State<BookingPage> {
                         margin: const EdgeInsets.symmetric(vertical: 6),
                         child: ListTile(
                           title: Text('$resourceName - $itemName'),
-                          subtitle: Text('$dateStr\nStatus: $status'),
+                          subtitle: Text('$dateStr\nStatus: $status\nBy: $userEmail'),
                           isThreeLine: true,
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (data['userId'] == user?.uid &&
-                                  data['status'] == 'upcoming')
+                              if (data['userId'] == user?.uid && status == 'upcoming')
                                 IconButton(
                                   icon: const Icon(Icons.check, color: Colors.green),
                                   tooltip: 'Mark as completed',
