@@ -192,20 +192,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     buildFeatureButton(
                       label: 'Feedback',
                       imagePath: 'assets/images/feedback.png',
-                      onTap: null,
+                      onTap: () {
+                        Navigator.pushNamed(context, '/feedback');
+                      },
                     ),
                     const SizedBox(width: 24),
                     buildFeatureButton(
                       label: 'Book Facilities',
                       imagePath: 'assets/images/book_facility.png',
-                      onTap: null,
+                      onTap: () {
+                        Navigator.pushNamed(context, '/booking');
+                      },
                     ),
                   ],
                 ),
 
                 const SizedBox(height: 32),
 
-                // 🔽 Chores Button 
+                // 🔽 Chores Button
                 buildFeatureButton(
                   label: 'Chores',
                   imagePath: 'assets/images/chores.png',
@@ -221,6 +225,3 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-
-
-
