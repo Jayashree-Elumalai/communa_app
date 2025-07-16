@@ -9,7 +9,7 @@ class ResourceItemsPage extends StatefulWidget {
     super.key,
     required this.resourceId,
     required this.resourceName,
-  });
+  }); //Takes resourceId and resourceName as arguments
 
   @override
   State<ResourceItemsPage> createState() => _ResourceItemsPageState();
@@ -19,7 +19,7 @@ class _ResourceItemsPageState extends State<ResourceItemsPage> {
   String? selectedItemId;
   String? selectedItemName;
 
-  Future<void> _addItem() async {
+  Future<void> _addItem() async { //Adds a new item document to /resources/{resourceId}/items
     final controller = TextEditingController();
     await showDialog(
       context: context,
@@ -50,7 +50,7 @@ class _ResourceItemsPageState extends State<ResourceItemsPage> {
     );
   }
 
-  Future<void> _editSelectedItem() async {
+  Future<void> _editSelectedItem() async { //Updates the name of the selected item
     if (selectedItemId == null) return;
     final controller = TextEditingController(text: selectedItemName);
     await showDialog(
@@ -83,7 +83,38 @@ class _ResourceItemsPageState extends State<ResourceItemsPage> {
   Future<void> _deleteSelectedItem() async {
     if (selectedItemId == null) return;
 
-    // Show confirmation dialog
+    // Check for bookings using this item
+    final bookingSnapshot = await FirebaseFirestore.instance
+        .collection('bookings')
+        .where('resourceId', isEqualTo: widget.resourceId)
+        .where('itemId', isEqualTo: selectedItemId)
+        .get();
+
+    if (bookingSnapshot.docs.isNotEmpty) {
+      final message = bookingSnapshot.docs.map((doc) {
+        final data = doc.data();
+        final user = data['userEmail'] ?? 'Unknown user';
+        final timestamp = data['date'] as Timestamp?;
+        final dateStr = timestamp != null
+            ? DateTime.fromMillisecondsSinceEpoch(timestamp.millisecondsSinceEpoch).toLocal().toString().split(' ')[0]
+            : 'Unknown date';
+        return '- $user on $dateStr';
+      }).join('\n');
+
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Cannot Delete Item'),
+          content: Text('This item is booked by:\n\n$message'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Confirm deletion
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -100,7 +131,7 @@ class _ResourceItemsPageState extends State<ResourceItemsPage> {
       ),
     );
 
-    // If confirmed, delete the item
+    // Delete if confirmed
     if (confirm == true) {
       await FirebaseFirestore.instance
           .collection('resources')
@@ -114,6 +145,7 @@ class _ResourceItemsPageState extends State<ResourceItemsPage> {
       });
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
