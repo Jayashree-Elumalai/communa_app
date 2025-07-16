@@ -13,7 +13,7 @@ class _ResourceManagementPageState extends State<ResourceManagementPage> {
   String? selectedResourceId;
   String? selectedResourceName;
 
-  Future<void> _addResource() async {
+  Future<void> _addResource() async { //Adds a document to the resources collection
     final controller = TextEditingController();
     await showDialog(
       context: context,
@@ -40,7 +40,7 @@ class _ResourceManagementPageState extends State<ResourceManagementPage> {
     );
   }
 
-  Future<void> _editSelectedResource() async {
+  Future<void> _editSelectedResource() async { //Updates the name of a selected resource
     if (selectedResourceId == null) return;
     final controller = TextEditingController(text: selectedResourceName);
     await showDialog(
@@ -71,16 +71,44 @@ class _ResourceManagementPageState extends State<ResourceManagementPage> {
   Future<void> _deleteSelectedResource() async {
     if (selectedResourceId == null) return;
 
+    // Check for bookings using this resource
+    final bookingSnapshot = await FirebaseFirestore.instance
+        .collection('bookings')
+        .where('resourceId', isEqualTo: selectedResourceId)
+        .get();
+
+    if (bookingSnapshot.docs.isNotEmpty) {
+      final message = bookingSnapshot.docs.map((doc) {
+        final data = doc.data();
+        final user = data['userEmail'] ?? 'Unknown user';
+        final timestamp = data['date'] as Timestamp?;
+        final dateStr = timestamp != null
+            ? DateTime.fromMillisecondsSinceEpoch(timestamp.millisecondsSinceEpoch).toLocal().toString().split(' ')[0]
+            : 'Unknown date';
+        return '- $user on $dateStr';
+      }).join('\n');
+
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Cannot Delete Resource'),
+          content: Text('This resource is booked by:\n\n$message'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Confirm deletion
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Resource'),
         content: Text('Are you sure you want to delete "$selectedResourceName"?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
