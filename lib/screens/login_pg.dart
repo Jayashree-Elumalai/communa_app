@@ -50,9 +50,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final data = docSnapshot.data();
       final role = data?['role']?.toString().toLowerCase() ?? 'user';
 
-      // DEBUG print
-      print("Logged in as $email with role: $role");
-
       if (role == 'admin') {
         Navigator.pushReplacement(
           context,
@@ -65,9 +62,31 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      print("Login error: $e");
       setState(() {
         error = 'Login failed. Please check your credentials.';
+      });
+    }
+  }
+
+  Future<void> resetPassword() async {
+    try {
+      if (emailController.text.trim().isEmpty) {
+        setState(() {
+          error = 'Please enter your email to reset password.';
+        });
+        return;
+      }
+
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: emailController.text.trim(),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent.')),
+      );
+    } catch (e) {
+      setState(() {
+        error = 'Failed to send reset email. Try again.';
       });
     }
   }
@@ -81,7 +100,6 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 🔽 LOGO & TITLE
             Image.asset('assets/images/communa_logo.png', height: 100),
             const SizedBox(height: 16),
             const Text(
@@ -102,8 +120,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             const SizedBox(height: 32),
-
-            // 🔽 FORM
             TextField(
               controller: emailController,
               decoration: InputDecoration(
@@ -143,8 +159,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // 🔽 LOGIN BUTTON
             ElevatedButton(
               onPressed: login,
               style: ElevatedButton.styleFrom(
@@ -162,6 +176,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: resetPassword,
+              child: const Text('Forgot Password?'),
+            ),
             if (error.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -170,10 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: const TextStyle(color: Colors.red),
                 ),
               ),
-
             const SizedBox(height: 24),
-
-            // 🔽 REGISTER LINK
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
