@@ -50,7 +50,7 @@ class _BookingPageState extends State<BookingPage> {
     });
   }
 
-  Future<void> selectDate() async {
+  Future<void> selectDate() async { // Opens a date picker for the booking date
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
@@ -64,7 +64,7 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
-  Future<void> submitBooking() async {
+  Future<void> submitBooking() async { //Validates fields
     if (user == null ||
         selectedResourceId == null ||
         selectedItemId == null ||
@@ -83,7 +83,7 @@ class _BookingPageState extends State<BookingPage> {
           .where('date', isEqualTo: Timestamp.fromDate(selectedDate!))
           .get();
 
-      if (existing.docs.isNotEmpty) {
+      if (existing.docs.isNotEmpty) { //Checks for duplicate booking
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('This item is already booked for this date'),
@@ -102,7 +102,7 @@ class _BookingPageState extends State<BookingPage> {
         'userEmail': user!.email ?? 'Unknown',
         'status': 'upcoming',
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      }); //Saves the booking with fields
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -181,10 +181,10 @@ class _BookingPageState extends State<BookingPage> {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection('bookings');
 
     if (filterStatus != 'all') {
-      query = query.where('status', isEqualTo: filterStatus);
+      query = query.where('status', isEqualTo: filterStatus); //Shows all/upcoming/completed
     }
 
-    if (filterBy == 'mine') {
+    if (filterBy == 'mine') { //Shows everyone's bookings or only the current user’s
       query = query.where('userId', isEqualTo: user?.uid);
     }
 
@@ -193,7 +193,7 @@ class _BookingPageState extends State<BookingPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Book a Shared Resource'),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF5E5BDA),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -260,41 +260,45 @@ class _BookingPageState extends State<BookingPage> {
             Row(
               children: [
                 const Text('Status:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 12),
-                DropdownButton<String>(
-                  value: filterStatus,
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All')),
-                    DropdownMenuItem(value: 'upcoming', child: Text('Upcoming')),
-                    DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      filterStatus = value!;
-                    });
-                  },
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: filterStatus,
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('All')),
+                      DropdownMenuItem(value: 'upcoming', child: Text('Upcoming')),
+                      DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        filterStatus = value!;
+                      });
+                    },
+                  ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
+                const SizedBox(width: 16),
                 const Text('By:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 12),
-                DropdownButton<String>(
-                  value: filterBy,
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('Everyone')),
-                    DropdownMenuItem(value: 'mine', child: Text('My Bookings')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      filterBy = value!;
-                    });
-                  },
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: filterBy,
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('Everyone')),
+                      DropdownMenuItem(value: 'mine', child: Text('My Bookings')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        filterBy = value!;
+                      });
+                    },
+                  ),
                 ),
               ],
             ),
+
+
             const SizedBox(height: 10),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
