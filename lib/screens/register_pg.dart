@@ -29,23 +29,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final repeatPassword = repeatPasswordController.text.trim();
 
     if (name.isEmpty) {
-      setState(() {
-        error = 'Please enter your full name.';
-      });
+      setState(() => error = 'Please enter your full name.');
+      return;
+    }
+
+    if (!email.contains('@') || !email.contains('.')) {
+      setState(() => error = 'Please enter a valid email address.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() => error = 'Password must be at least 6 characters.');
       return;
     }
 
     if (password != repeatPassword) {
-      setState(() {
-        error = 'Passwords do not match.';
-      });
+      setState(() => error = 'Passwords do not match.');
       return;
     }
-
-    // ✅ Show immediate success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('✅ Registered successfully. Please wait...')),
-    );
 
     try {
       final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -61,22 +62,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'email': email,
       });
 
-      // Wait a short while so they can see the snackbar
-      await Future.delayed(const Duration(seconds: 1));
-
-
       if (mounted) {
-        Navigator.of(context).pop(); // back to login
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Registered successfully!')),
+        );
+        Navigator.of(context).pop();
       }
     } catch (e) {
       if (e is FirebaseAuthException) {
         setState(() {
           if (e.code == 'email-already-in-use') {
             error = 'This email is already in use.';
-          } else if (e.code == 'invalid-email') {
-            error = 'Please enter a valid email address.';
-          } else if (e.code == 'weak-password') {
-            error = 'Password must be at least 6 characters.';
           } else {
             error = 'Registration failed. Please try again.';
           }
@@ -88,7 +84,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
